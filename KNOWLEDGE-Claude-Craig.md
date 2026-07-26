@@ -106,7 +106,14 @@ actually add value — not in rebuilding inventory or dashboards.
   - `dependabot/npm_and_yarn/coe-cli/babel/plugin-transform-modules-systemjs-7.29.4` (PR #11039)
   - `dependabot/npm_and_yarn/coe-cli/brace-expansion-1.1.14` (PR #11036)
   - `dependabot/npm_and_yarn/coe-cli/axios-0.31.1` (PR #11032)
-  - All last updated ~2 months before archiving; all showing partial check status (2/4).
+  - All last updated ~2 months before archiving. **Correction (24 Jul 2026,
+    re-verified live)**: the original "partial check status (2/4)" note was
+    wrong — all three PRs' `test` and `license/cla` checks report `success`;
+    the other two entries are bot workflows (`issue_opened_or_reopened`,
+    `issue_closed`) that report `skipped`, not failing. All three are green.
+    Also: their base commits (`e5b8162`, `4a4d5463`) are direct ancestors of
+    the fork's current `main` — only 1–2 commits behind, not meaningfully
+    stale. Cherry-picks should apply cleanly. Full re-assessment in §8.
 - **The real bug backlog was never in branches — it's in Issues**, and was never
   cleared: known unresolved bugs at end-of-life included stale object alerts firing
   for deleted flows, inventory sync failures, BYODL/Dataflow failures in GCC
@@ -189,7 +196,104 @@ actually add value — not in rebuilding inventory or dashboards.
   attracts outside contributors). "Sponsor a community fork" implies leaning
   toward the latter — worth naming that choice explicitly rather than assuming it.
 
-## 7. Key sources
+## 7. Build process & dependency health (`coe-cli`) — verified 24 Jul 2026
+
+Findings from actually running the build locally before merging any Dependabot
+PRs, prompted by the realization that "does it build" wasn't verified anywhere.
+
+**Documentation coverage — thin.** `HOW_TO_CONTRIBUTE.md`/`CONTRIBUTING.md`
+cover git workflow and CLA, not build steps. `coe-cli/readme.md` documents
+*end-user* install requirements (Node 12+, Azure CLI) for running the compiled
+CLI, not contributor build/test steps. `coe-cli/docs/cli-development/readme.md`
+is a dead stub pointing at Microsoft Learn. No document anywhere says "run
+`npm install && npm run build && npm test`" — the only executable source of
+truth is the CI workflow.
+
+**CI coverage — incomplete.** `.github/workflows/pr-loop-jest-tests.yml` is
+the only build-related workflow: pins **Node 16.x** on `windows-latest`, runs
+`npm install` + `npm test` in `/coe-cli`. It does **not** run `npm run build`
+(tsc) or `npm run lint` — a change that breaks compilation could still pass
+CI today. `coe-cli/package.json` has no `engines` field, so nothing pins a
+Node version at the package level either. (Other workflows —
+`assign-issue-to-project.yml`, `auto-reply`, `sync-to-azdo.yml` — are unrelated
+to build.)
+
+**Locally verified working**, using the tools already installed (Node
+v24.15.0, npm 11.12.1 — no separate setup needed):
+- `npm install` — succeeds. 763 packages, one `EBADENGINE` warning
+  (`@azure/msal-node@1.14.6` wants Node 10/12/14/16/18), and **55 known
+  vulnerabilities across the full tree (14 low, 14 moderate, 24 high, 3
+  critical)** per `npm audit` — this is much broader than just the 3
+  Dependabot-flagged packages. Feeds the "high-priority npm-audit
+  re-evaluation" follow-up task in `TODO-Craig.md`.
+- `npm run build` (`tsc`) — clean, exit 0, despite the pinned TypeScript
+  being `^4.5.5` (2022-era) running under Node 24.
+- `npm test` (jest) — **12 suites / 89 tests, all pass**.
+- `npm run lint` (eslint) — **broken**. No `.eslintrc*` has ever existed in
+  `coe-cli`'s git history, so ESLint has nothing to load and errors out. The
+  script itself (`eslint . & echo 'lint complete'`) uses `&` not `&&`, so the
+  npm script always exits 0 regardless — this has likely silently no-op'd for
+  the project's entire life, not something recent drift broke.
+
+**Net read**: the actual build is healthy (compiles, tests pass) — the gap is
+process, not code: no documented contributor build steps, no Node version
+pin, no build/lint step in CI, and a lint config that's never existed. Worth
+fixing before merging dependency bumps so a broken bump would actually be
+caught.
+
+**Fixed (24 Jul 2026, same day)**: CI (`pr-loop-jest-tests.yml`) now runs
+`npm run build` and `npm run lint` as separate steps, so either failing now
+fails CI. Added `coe-cli/.eslintrc.json` (TypeScript-recommended rules, with
+the purely-mechanical legacy-style ones — `no-var`, `prefer-const`,
+`no-var-requires`, `no-empty-function` — turned off since 962 of the initial
+1008 errors were exactly those and 100% pre-existing debt unrelated to
+correctness). Fixed the `lint` script's `&`-masking bug. Ran `eslint --fix`
+for the handful of remaining trivial, auto-fixable production-code issues;
+the one non-auto-fixable case got a scoped disable comment rather than a
+behavioral change. `npm run lint` now genuinely exits 0 (0 errors, 294
+warnings — tracked debt, mostly `no-explicit-any`/`no-unused-vars`, not
+blocking). `eslint` itself added as an explicit devDependency (was only
+resolving transitively before). Remaining open items (Node version/`engines`
+pin, contributor build docs) are tracked in `TODO-Craig-Detailed.md` §0.
+
+**Test coverage baseline** (`npx jest --coverage`, 24 Jul 2026): 67.7%
+statements / 48.9% branches / 58.9% functions / 68.5% lines overall. Weakest
+spots: `src/common/cli.ts` (7.4% stmts), `src/common/prompt.ts` (14.3%),
+`src/commands/ebook.ts` (39.5%), `src/common/environment.ts` (40.2%),
+`src/commands/login.ts` (50%). All 10 `src/commands/*.ts` files have a
+matching `test/commands/*.spec.ts`; `src/common/` has specs for only
+`config.ts` and `environment.ts` (`cli.ts`, `prompt.ts`,
+`readLineManagement.ts` don't). No test coverage exists anywhere outside
+`coe-cli` — the Dataverse solution folders (`CenterofExcellence*`,
+`ALMAccelerator*`, etc., the bulk of the actual CoE Starter Kit) have no
+automated test framework at all.
+
+## 8. Dependabot branch re-assessment (24 Jul 2026)
+
+Before merging, checked live PR state via the GitHub REST API and cross-
+referenced each pinned version against the [OSV database](https://osv.dev)
+(`api.osv.dev`) rather than trusting the ~2-month-old Dependabot suggestions
+verbatim.
+
+| Dep | Current (in fork `main`) | Dependabot target | OSV result |
+|---|---|---|---|
+| `@babel/plugin-transform-modules-systemjs` | 7.16.7 — 1 HIGH vuln | 7.29.4 | **Fully fixes it** — 0 vulns remain |
+| `brace-expansion` (transitive) | 1.1.11 — 3 vulns (1 HIGH) | 1.1.14 | Fixes 2 of 3; **leaves the HIGH-severity DoS bug unpatched** (`GHSA-3jxr-9vmj-r5cp`, fixed only in 1.1.16) |
+| `axios` (direct dep) | 0.25.0 — **23 known vulns** | 0.31.1 | Still leaves **12 vulns, several HIGH** (Proxy-Authorization credential leak on redirect, ReDoS via cookie injection, NO_PROXY/SSRF bypasses). Current npm 0.x floor is 0.33.0; latest overall is 1.18.1. |
+
+`axios` usage in `coe-cli` is trivial (`axios.get<string>(url, config).data`
+in `src/commands/devops.ts`), so a bigger version jump carries low
+breaking-API risk whenever that's tackled.
+
+**Decision (24 Jul 2026)**: don't try to leapfrog straight to fully-patched
+versions in the same pass as bringing in the stale Dependabot branches — do
+the build-process hardening (§7) first, then merge the 3 Dependabot PRs as
+originally planned (`TODO-Craig-Detailed.md` §2, cherry-pick approach), then
+run a dedicated `npm audit`/dependency-floor re-evaluation as a high-priority
+follow-up (tracked in `TODO-Craig.md`) rather than bundling a bigger version
+jump into the "bring in what Dependabot already proposed" step.
+
+## 9. Key sources
 
 - Microsoft Learn — CoE Starter Kit transition notice:
   https://learn.microsoft.com/en-us/power-platform/guidance/coe/starter-kit

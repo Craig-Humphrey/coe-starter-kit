@@ -82,7 +82,7 @@ class AADCommand {
         let userInfo = JSON.parse(this.runCommand(`az ad user show --id ${user}`, false))
         if (typeof userInfo === "object" && typeof userInfo.id === "string") {
             let result = JSON.parse(this.runCommand(`az ad group member check --group ${azureActiveDirectoryMakersGroup} --member-id ${userInfo.id}`, false))
-            let exists : Boolean = (result.value == true)
+            let exists : boolean = (result.value == true)
 
             if (!exists) {
                 this.logger?.info(`Add ${userInfo.id} to ${azureActiveDirectoryMakersGroup}`)

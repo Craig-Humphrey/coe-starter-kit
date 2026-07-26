@@ -69,6 +69,10 @@ Notes:
 
 Looking to understand how the CoE CLI commands works? The [CoE CLI Development](./docs/cli-development/readme.md) dives technically deeper into the CoE CLI commands and discusses how to debug and add / extend commands.
 
+Adding or changing a command? See [Testing](./docs/testing/readme.md) for the
+existing test conventions, current coverage, and known gaps before writing
+new tests.
+
 ## Contributions
 
 The [Contribution Guide](./CONTRIBUTING.md) includes technical details on how to contribute additional CoE CLI commands.

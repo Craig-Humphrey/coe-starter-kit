@@ -386,7 +386,7 @@ Some text
 Other`)
          }
 
-        let call : number = 0
+        let call  = 0
 
         let option = <Option> {
             description: 'Option1',

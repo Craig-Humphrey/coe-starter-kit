@@ -30,6 +30,17 @@ jobs:
         working-directory: ./coe-cli
         run: npm install
 
+      # Fail the build if TypeScript doesn't compile - previously unchecked
+      - name: Build
+        working-directory: ./coe-cli
+        run: npm run build
+
+      # Fail the build on lint errors - previously silently no-op'd (missing config + a
+      # script bug meant this always reported success regardless of what eslint found)
+      - name: Lint
+        working-directory: ./coe-cli
+        run: npm run lint
+
       # Finally, run our tests
       - name: Run the tests
         working-directory: ./coe-cli

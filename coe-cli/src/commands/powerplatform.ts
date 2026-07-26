@@ -141,7 +141,7 @@ class PowerPlatformCommand {
             let solutions: any = await this.getSecureJson(`${environmentUrl}api/data/v9.0/solutions?$filter=uniquename%20eq%20%27${almSolutionName}%27`, args.accessToken)
     
             if (solutions.value.length == 0 || this.config.upgrade == true) {
-                let base64CustomizationFile : string = ""
+                let base64CustomizationFile  = ""
                 if ( args.sourceLocation?.startsWith("base64:"))
                 {
                     base64CustomizationFile = args.sourceLocation.substring(7)

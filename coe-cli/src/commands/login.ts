@@ -139,6 +139,7 @@ class LoginCommand {
     
     async login(clientConfig: Configuration, deviceCodeRequest: DeviceCodeRequest) : Promise<AuthenticationResult>
     {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias -- captured for use inside nested MSAL callbacks below
         var self = this
         const pca =  this.createClientApp(clientConfig)
         /**

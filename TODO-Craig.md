@@ -21,14 +21,43 @@ before spending any real effort on Phase 2+.
       full step-by-step plan in `TODO-Craig-Detailed.md` (§1). Confirmed the
       archived repo is still fully readable via the GitHub API/git, so this
       isn't urgent, but do it before relying on that indefinitely.
+- [x] **Harden the `coe-cli` build/CI process before merging any dependency
+      bumps** — **done (24 Jul 2026)**: CI now runs `npm run build` and
+      `npm run lint` as their own steps (previously only `npm test` ran).
+      Added a real ESLint config, fixed the script bug that was masking lint
+      failures, fixed the handful of resulting trivial errors (`npm run
+      lint` now exits 0: 0 errors / 294 tracked warnings). Full details in
+      `KNOWLEDGE-Claude-Craig.md` §7. **Still open**: Node version pin
+      (CI's 16.x is EOL, no `engines` field in `package.json`) and
+      contributor build docs — tracked in `TODO-Craig-Detailed.md` §0,
+      items 3–4, not blocking the Dependabot merge below.
+- [x] **Test guidance + coverage baseline for `coe-cli`** — **done (24 Jul
+      2026)**: no test documentation existed anywhere in the repo. Added
+      `coe-cli/docs/testing/readme.md` — existing test conventions
+      (constructor-injection + jest-mock-extended), a coverage snapshot
+      (67.7% stmts overall; `common/cli.ts` 7.4% and `common/prompt.ts` 14.3%
+      have zero spec files), and two gap buckets: actionable-now vs.
+      genuinely-hard-to-test (the `az` CLI/readline shell-outs with no
+      injection seam, and the entire non-`coe-cli` solution layer, which has
+      no test framework at all). Linked from `coe-cli/readme.md`.
 - [ ] Merge the 3 pending Dependabot branches into the fork — **confirmed
       (24 Jul 2026) these did NOT come across** when the fork was created
       (fork only has `main`); all three are confirmed still live on the
-      archived upstream repo and fetchable. Full plan in
-      `TODO-Craig-Detailed.md` (§2):
+      archived upstream repo and fetchable, still open, and CI-green (see
+      `KNOWLEDGE-Claude-Craig.md` §4/§8 — an earlier note about partial CI
+      checks was wrong). Sequence **after** the build-hardening item above.
+      Full plan in `TODO-Craig-Detailed.md` (§2):
   - [ ] `dependabot/npm_and_yarn/coe-cli/babel/plugin-transform-modules-systemjs-7.29.4` (PR #11039)
   - [ ] `dependabot/npm_and_yarn/coe-cli/brace-expansion-1.1.14` (PR #11036)
   - [ ] `dependabot/npm_and_yarn/coe-cli/axios-0.31.1` (PR #11032)
+- [ ] **High priority follow-up** (added 24 Jul 2026): re-run `npm
+      audit`/OSV check on the full `coe-cli` dependency tree after the above
+      merge lands. Local `npm audit` already found **55 vulnerabilities (14
+      low, 14 moderate, 24 high, 3 critical)** across the whole tree — far
+      more than the 3 Dependabot-flagged packages, and even the Dependabot
+      targets themselves don't fully clear the vulns on `axios`/
+      `brace-expansion`. See `KNOWLEDGE-Claude-Craig.md` §8 for the specific
+      gaps found.
 - [ ] Skim the March 2026 milestone (last active, left ~56% complete) for
       anything that was near-finished and worth closing out first
 

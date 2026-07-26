@@ -757,7 +757,7 @@ class CoeCliCommands {
         }
     }
 
-    async promptForValues(command: commander.Command, name: string, required: string[], ignore: string[], parse:  { [id: string] : TextParseFunction }, helpFile: string = '') : Promise<any> {
+    async promptForValues(command: commander.Command, name: string, required: string[], ignore: string[], parse:  { [id: string] : TextParseFunction }, helpFile = '') : Promise<any> {
         let values: any = {}
         let match = command.commands.filter( (c: commander.Command) => c.name() == name)
         let parseKeys = Object.keys(parse)
@@ -797,7 +797,7 @@ class CoeCliCommands {
         return values
     }
 
-    async promptOption(helpFile: string, required: string[],  option: Option, data: any, parse:  { [id: string] : TextParseFunction }, offset: number = 0) : Promise<void> {
+    async promptOption(helpFile: string, required: string[],  option: Option, data: any, parse:  { [id: string] : TextParseFunction }, offset = 0) : Promise<void> {
         return new Promise((resolve, reject) => {
             try {
                 this.readline = ReadLineManagement.setupReadLine(this.readline)
@@ -859,7 +859,7 @@ class CoeCliCommands {
                         resolve()
                     });
                 } else {
-                    let defaultText: string = ''
+                    let defaultText = ''
                     if (typeof option.defaultValue !== "undefined") {
                         defaultText = ` (Default ${option.defaultValue})`
                     }

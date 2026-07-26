@@ -569,7 +569,7 @@ class DevOpsCommand {
         }
     }
 
-    async createMakersServiceConnections(args: DevOpsInstallArguments, connection: azdev.WebApi, setupEnvironmentConnections: boolean = true) {
+    async createMakersServiceConnections(args: DevOpsInstallArguments, connection: azdev.WebApi, setupEnvironmentConnections = true) {
         let projectNames = [args.projectName]
         if (typeof args.pipelineProjectName !== "undefined" && args.pipelineProjectName != args.projectName) {
             projectNames.push(args.pipelineProjectName)

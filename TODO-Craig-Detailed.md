@@ -7,6 +7,59 @@ written to be handed to Claude Code (git/CLI work) — cross-reference
 
 ---
 
+## 0. Establish a working build/test baseline (do this first)
+
+**Why**: before merging any dependency bump — Dependabot's or a newer
+security floor — we need to be able to prove a change still builds and tests
+clean. Right now CI can't fully do that. Verified 24 Jul 2026, findings in
+`KNOWLEDGE-Claude-Craig.md` §7.
+
+**Current state**:
+- `npm install`, `npm run build` (`tsc`), and `npm test` (jest) all work
+  today on Node v24.15.0 — 89/89 tests pass, build is clean.
+- `.github/workflows/pr-loop-jest-tests.yml` pins **Node 16.x** and only runs
+  `npm install` + `npm test` — it does not run `npm run build` or
+  `npm run lint`. A change that breaks compilation would still pass CI.
+- `npm run lint` is broken independent of any of this: no `.eslintrc*` has
+  ever existed for `coe-cli` (checked git history), and the script
+  (`eslint . & echo 'lint complete'`) uses `&` not `&&`, so it always
+  reports success regardless. Long-standing, not caused by recent drift.
+- No `engines` field in `coe-cli/package.json` — nothing pins a supported
+  Node range at the package level either.
+
+**Done (24 Jul 2026) — items 1 and 2:**
+1. `.github/workflows/pr-loop-jest-tests.yml` now runs `npm run build` and
+   `npm run lint` as their own named steps between install and test, so
+   either one failing now fails CI (previously only `npm test` ran).
+2. `coe-cli/.eslintrc.json` created (`@typescript-eslint/recommended`,
+   `no-var`/`prefer-const`/`no-var-requires`/`no-empty-function` turned off
+   since they were 100% pre-existing legacy-JS style debt unrelated to
+   correctness — see `KNOWLEDGE-Claude-Craig.md` §7 for the before/after
+   error counts). Fixed the `lint` script's `&`→command bug that was masking
+   failures. Ran `eslint --fix` for the remaining trivial, auto-fixable
+   production-code issues (redundant type annotations, `Boolean`→`boolean`);
+   the one non-auto-fixable case (`no-this-alias` in `login.ts`) got a scoped
+   `eslint-disable-next-line` rather than a behavioral refactor. Result:
+   `npm run lint` now exits 0 with 0 errors / 294 warnings (the warnings are
+   tracked debt, not blocking — mostly `no-explicit-any`/`no-unused-vars`).
+   Also added `eslint` itself as an explicit devDependency (`^8.8.0`) since
+   it was previously only resolving transitively.
+
+**Still open — items 3 and 4 (unchanged, not yet actioned)**:
+3. Decide whether to bump the CI Node version (16.x is EOL) and/or add an
+   `engines` field to `package.json` to pin a supported range — needs a
+   decision on what range to support, not just "whatever's installed
+   locally." Related: a local `npm install` under Node 24/npm 11 rewrites
+   large parts of `package-lock.json` (prunes platform-specific optional
+   entries) compared to what CI's Node 16.x npm produces — the lockfile
+   isn't currently a stable artifact across those two environments, which
+   is a symptom of this same undecided Node-version question.
+4. Optionally add the build+test+lint steps as a documented contributor
+   workflow section in `HOW_TO_CONTRIBUTE.md`, since nothing currently tells
+   a contributor how to build/test `coe-cli` from source.
+
+---
+
 ## 1. Export/import the Issues backlog from the archived upstream repo
 
 **Why**: Issues and PR discussion threads are platform data, not git data —
@@ -101,10 +154,24 @@ that as permanent. Do this during Phase 1, not deferred indefinitely.
 
 ## 2. Merge the 3 pending Dependabot branches
 
+**Sequencing (decided 24 Jul 2026): do §0 (build/CI baseline) first.** Once
+that lands, follow this plan as originally written — bring in the literal
+Dependabot bumps below, then run the `npm audit`/OSV re-evaluation as a
+separate high-priority follow-up (`TODO-Craig.md`) rather than trying to
+leapfrog to fully-patched versions in this same pass. Reasoning and the
+specific vulnerability gaps found (`brace-expansion` 1.1.14 and `axios`
+0.31.1 both leave known HIGH-severity vulns unpatched) are in
+`KNOWLEDGE-Claude-Craig.md` §8.
+
 **Confirmed (24 Jul 2026)**: all three branches are still live on
 `microsoft/coe-starter-kit` and fetchable, despite the repo being archived.
 Craig's fork only pulled `main` when it was created, so none of these three
-came across — they need to be fetched directly from upstream.
+came across — they need to be fetched directly from upstream. Also
+re-verified live: all three PRs are still **open** and their `test` +
+`license/cla` checks are **green** (an earlier note about "partial check
+status" was wrong — the other two check entries are skipped bot workflows,
+not failures), and their base commits are only 1–2 commits behind the fork's
+current `main` — not meaningfully stale, cherry-picks should apply cleanly.
 
 | Branch | PR | Bump |
 |---|---|---|
@@ -134,8 +201,10 @@ git fetch upstream "dependabot/npm_and_yarn/coe-cli/babel/plugin-transform-modul
 
 ### Step 3 — Check for drift before merging
 
-These branches are 2+ months stale off Microsoft's `main` at archive time,
-not off Craig's fork's `main` — confirm they still apply cleanly:
+Re-verified 24 Jul 2026: each PR's base commit is only 1–2 commits behind the
+fork's current `main` (they're direct ancestors), so drift risk is low
+despite the branches themselves being ~2 months old — still worth a quick
+confirm rather than assuming:
 
 ```bash
 git diff main upstream-axios -- coe-cli/package.json coe-cli/package-lock.json
@@ -161,11 +230,15 @@ faithful to "this is literally the original Dependabot PR," but more likely
 to hit conflicts if the fork's `main` has diverged at all. Use Option 1
 unless there's a specific reason to preserve the exact branch history.
 
-### Step 5 — Security-freshness check (cheap add-on, not in original scope)
+### Step 5 — Security-freshness check → now a separate tracked follow-up
 
-These proposed bumps are ~2 months old. After merging, check whether newer
-patch versions exist and consider those as the real floor rather than
-replaying stale Dependabot suggestions verbatim:
+Already run once (24 Jul 2026, `KNOWLEDGE-Claude-Craig.md` §8): the
+Dependabot targets don't fully clear known vulns —`brace-expansion` 1.1.14
+still leaves a HIGH-severity DoS bug (fixed in 1.1.16), `axios` 0.31.1 still
+leaves 12 vulns including several HIGH (fixed floor is 0.33.0 in the 0.x
+line, or 1.18.1 latest). Decision: don't fold a bigger version jump into
+*this* merge — land the literal Dependabot bumps here, then do the
+re-evaluation as its own high-priority item (tracked in `TODO-Craig.md`):
 
 ```bash
 cd coe-cli && npm outdated && npm audit
@@ -175,8 +248,12 @@ cd coe-cli && npm outdated && npm audit
 
 ```bash
 git commit -m "Merge dependabot/npm_and_yarn/coe-cli/axios-0.31.1 (was microsoft/coe-starter-kit#11032, unmerged at archive)"
-cd coe-cli && npm ci && npm test   # or npm run build / a basic smoke check if no test suite
+cd coe-cli && npm ci && npm run build && npm test
 ```
+
+(Confirmed 24 Jul 2026 that `build` + `test` both work locally — see §0 —
+so there's no excuse to skip either here even though CI itself doesn't
+currently enforce `build`.)
 
 Push to `main` (or a short-lived branch + self-merge PR, if Craig wants a
 review step even solo).

@@ -4,7 +4,7 @@ const { exec } = require('child_process');
 
 export class Config {
 
-    static configSetup: boolean = false;
+    static configSetup = false;
     static data: { [id: string]: any; } = {}
 
     public static async init() {
@@ -113,7 +113,7 @@ export class Config {
         return null
       }
 
-      static async runCommand(command :string, resultOnly :boolean = false) : Promise<string> {
+      static async runCommand(command :string, resultOnly  = false) : Promise<string> {
         return await new Promise<string>((resolve, reject) => {
           exec(command, (err : string, stdout : string, stderr: string) => {
             if (err) {
