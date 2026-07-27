@@ -305,26 +305,104 @@ it needs its own clean identity as **Community CoE Starter Kit**.
   Platform-branded imagery beyond generic product icons; swap for
   neutral/community assets if there's trademark risk.
 
-### Phase C — solution/schema level (bigger, higher-risk — explicit decision, not a default)
+### Phase C — publisher/schema (verified 24 Jul 2026 — see `KNOWLEDGE-Claude-Craig.md` §9 for the raw findings)
 
-The Dataverse solution(s) currently ship under Microsoft's original
-publisher prefix (confirm the exact prefix by inspecting the unpacked
-solution's `publisher.xml` — this determines every table/column/flow
-internal name). Renaming it is a **breaking change**: managed-solution
-upgrade paths rely on matching solution/publisher IDs, so anyone running the
-original CoE Starter Kit couldn't upgrade in place onto a republished
-solution — they'd need a fresh install.
+**Checked all 13 `Solution.xml` files. Three different publishers are
+already in play, not one:**
 
-This needs an explicit decision (add to `SCOPE-CHARTER.md`'s open-decisions
-list, don't resolve it silently as part of a "branding cleanup" pass):
+| Publisher (`UniqueName` / display) | Prefix | Used by |
+|---|---|---|
+| `catteam` / **"Power CAT"** | `cat` | ALM Accelerator, ALM Accelerator for Makers, Pipeline Accelerator, Theming |
+| `powerplatformadmin` / "Power Platform Admin" | `admin` | Core Components, Audit/Governance Components, Nurture Components (the biggest ones) |
+| `Crc030b` / "CDS Default Publisher" | `cr5cd` | business_value_core |
 
-- **Keep the original publisher/prefix** — preserves the upgrade path for
-  existing CoE Starter Kit installs, but keeps Microsoft's naming baked into
-  the schema indefinitely.
-- **Re-publish under a new "Community CoE" publisher** — clean brand
-  independence, but breaks in-place upgrades for existing installs.
+**Is it tied to Microsoft?** Mixed. "Power CAT" is a literal reference to
+Microsoft's internal Customer Advisory Team — a real, direct Microsoft tie.
+"Power Platform Admin" is generic/functional, not Microsoft-named, even
+though Microsoft wrote it. "CDS Default Publisher" is just an unedited
+Dataverse default — an artifact of it never being customized, not a
+deliberate brand at all. Neither of the latter two literally says
+"Microsoft"; only "Power CAT" does.
 
-Recommend deferring this to the Phase 2 scope/governance conversation rather
-than bundling it into the initial branding pass — bundling it in is exactly
-the kind of scope creep flagged as the biggest risk in
-`KNOWLEDGE-Claude-Craig.md` §6.
+**The hard platform constraint**: a component's `CustomizationPrefix`
+(`cat_`, `admin_`, `cr5cd_`) is baked into every table/column/flow's logical
+name **at creation time** and cannot be renamed afterwards for any existing
+component, ever — this is a Dataverse platform rule, not something specific
+to this kit, and not something a script or build step can work around.
+Retrofitting a new prefix onto existing schema means recreating every table,
+column, flow, and app from scratch and migrating any live data — a
+ground-up rebuild, not a rebrand. **Stays out of scope**, matching the
+original recommendation.
+
+**But that's not actually needed to fix the "looks Microsoft-provided"
+concern** — almost nobody sees the prefix (it only shows up to a maker
+inspecting schema/advanced find). What people *do* see is the publisher's
+**display name** ("Power CAT" in Settings → Solutions) and the outer
+solution's branding — and both of those are cheap, safe, and genuinely
+buildable:
+
+1. **Cheapest fix (do this regardless)**: rename the publisher
+   `<LocalizedNames>`/`<Descriptions>` text directly in the checked-in
+   `Solution.xml` files — e.g. `catteam`'s "Power CAT" → "Community CoE
+   Starter Kit". Pure text edit to source already under version control, no
+   schema impact, no data migration, safe for anyone upgrading in place. The
+   existing `deploy-*.yml` pipelines already package and import straight
+   from these files, so this is a one-line change that flows through the
+   existing build/release process with no new pipeline step needed.
+2. **For real brand independence**: create one new umbrella solution +
+   publisher (e.g. `communitycoe` / prefix `ccsk`) and add the *existing*
+   `admin_`/`cat_`/`cr5cd_`-prefixed tables, flows, and apps into it as
+   included components. Dataverse solutions are just containers — a
+   component's origin prefix is fixed forever, but which solution "owns" and
+   distributes it isn't. This is exactly the pattern used to consolidate the
+   8 separate existing solutions under one distributable, cleanly-branded
+   package. **Caveat**: existing installs of the original Microsoft-published
+   managed solutions can't upgrade onto this new umbrella solution in place
+   (new solution `UniqueName` = Dataverse treats it as unrelated) — matches
+   what was already flagged, fresh install only for anyone on the old kit.
+
+   **Confirmed (24 Jul 2026) — this is all doable via `pac` CLI, no
+   make.powerapps.com needed** (one-time interactive/Entra sign-in via
+   `pac auth create` aside — that's login, not the maker portal):
+
+   ```bash
+   # 1. Scaffold a new publisher + solution locally
+   pac solution init --publisher-name CommunityCoEStarterKit --publisher-prefix ccsk --outputDirectory ./CommunityCoEUmbrella
+   cd CommunityCoEUmbrella && dotnet build   # produces an empty solution .zip
+
+   # 2. Import it — this is what actually creates the Publisher + Solution
+   #    records live in Dataverse, entirely via CLI
+   pac solution import --path ./bin/Debug/CommunityCoEStarterKit.zip --publish-changes
+
+   # 3. Add existing components into it (repeat per component)
+   pac solution add-solution-component --solutionUniqueName CommunityCoEStarterKit \
+     --component admin_app --componentType 1 --AddRequiredComponents
+   ```
+
+   Component type codes are a fixed Microsoft reference list (Table=1,
+   Workflow/Flow=29, Web Resource=61, Canvas App=300, ...) — see the
+   [SolutionComponent reference](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/reference/entities/solutioncomponent#BKMK_ComponentType)
+   for the full set, including a couple (e.g. AppModule/model-driven apps)
+   not on that particular page that are worth double-checking before
+   scripting against them.
+
+   **Ponytail call**: `add-solution-component` only takes one component at a
+   time by schema name + type code. Scripting that for the ~hundreds of
+   pre-existing components across all 8 legacy solutions is real
+   effort — for that one-time historical migration, it's genuinely less
+   work to do it once via the maker portal's multi-select "Add existing"
+   dialog (a few minutes of clicking) than to write and debug a
+   componentType-lookup script for a single bulk pass. Reserve the CLI
+   command for what it's actually good at: every *new* component created
+   from here on, added one at a time as part of the normal build, with
+   zero portal use.
+
+**Recommendation**: do (1) as part of Branding Phase A — it directly answers
+the "still looks Microsoft" worry, is nearly free, and is the one piece of
+this that touches the schema layer at all. Treat (2) as a real but separate
+Phase 2 decision (add to `SCOPE-CHARTER.md`'s open-decisions list) — worth
+doing before any public release since it's what makes "Community CoE Starter
+Kit" the actual publisher of record, but sequence it deliberately rather
+than folding it into a routine branding pass. Do not attempt a full
+prefix/schema rebuild — that's a separate, much larger project and stays
+out of scope per the charter.

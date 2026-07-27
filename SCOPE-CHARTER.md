@@ -76,7 +76,12 @@ needs to be aware this is happening (Phase 4 of `TODO-Craig.md`).
 ## Open decisions still pending (not blocking Phase 1)
 
 - Governance transition trigger/criteria.
-- Whether/when to rebrand the Dataverse publisher/schema prefix (breaking
-  change for existing installs vs. clean brand independence).
+- Whether/when to stand up a new umbrella solution + publisher (e.g.
+  `communitycoe` / `ccsk`) that owns the existing components going forward —
+  cheap and buildable, but existing Microsoft-published installs can't
+  upgrade onto it in place (fresh install only). Renaming the prefix on
+  already-existing tables/columns/flows themselves is not on the table at
+  all — that's a hard Dataverse platform limit, not a decision to make (see
+  `KNOWLEDGE-Claude-Craig.md` §9).
 - Whether/when to move the repo off Craig's personal GitHub to a neutral or
   Fusion5-hosted-but-unbranded location.

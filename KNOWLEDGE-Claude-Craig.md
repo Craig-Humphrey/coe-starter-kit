@@ -293,7 +293,35 @@ run a dedicated `npm audit`/dependency-floor re-evaluation as a high-priority
 follow-up (tracked in `TODO-Craig.md`) rather than bundling a bigger version
 jump into the "bring in what Dependabot already proposed" step.
 
-## 9. Key sources
+## 9. Publisher/schema branding — verified 24 Jul 2026
+
+Checked all 13 `Solution.xml` files (`**/Other/Solution.xml`) for
+`<Publisher>` and `CustomizationPrefix`. Three different publishers are
+already in use across the kit, not one:
+
+| Publisher `UniqueName` / display name | `CustomizationPrefix` | Used by |
+|---|---|---|
+| `catteam` / **"Power CAT"** | `cat` | `CenterofExcellenceALMAccelerator`, `ALMAcceleratorForMakers`, `CenterofExcellencePipelineAccelerator`, `Theming` |
+| `powerplatformadmin` / "Power Platform Admin" | `admin` | `CenterofExcellenceCoreComponents`, `CenterofExcellenceAuditComponents`, `CenterofExcellenceNurtureComponents` (the largest/most-used solutions) |
+| `Crc030b` / "CDS Default Publisher" | `cr5cd` | `business_value_core` |
+
+(Not yet checked individually: `ALMAcceleratorSampleSolution`,
+`CenterofExcellenceAuditLogs`, `CenterofExcellenceCoreComponentsTeams`,
+`CenterofExcellenceInnovationBacklog`, `admintaskanalysis_core` — likely one
+of the three above given the pattern, confirm before relying on it.)
+
+**Take**: none of these literally say "Microsoft." "Power CAT" is a direct
+reference to Microsoft's internal Customer Advisory Team — the one genuine
+Microsoft tie. "Power Platform Admin" is generic/functional. "CDS Default
+Publisher" is just an unedited Dataverse default, not a deliberate brand.
+
+**Hard constraint**: `CustomizationPrefix` is baked into every existing
+table/column/flow's logical name at creation and cannot be renamed for
+existing components — a Dataverse platform rule, not fixable by any script
+or build step. Full plan (what's cheap vs. what's a separate rebuild
+project) is in `TODO-Craig-Detailed.md` §3, Phase C.
+
+## 10. Key sources
 
 - Microsoft Learn — CoE Starter Kit transition notice:
   https://learn.microsoft.com/en-us/power-platform/guidance/coe/starter-kit
