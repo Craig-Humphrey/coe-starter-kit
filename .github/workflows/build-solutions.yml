@@ -1,0 +1,80 @@
+name: Solution Build
+
+# Builds every Dataverse solution project (.cdsproj) to prove they still pack
+# into a deployable .zip. Excludes ALMAcceleratorForMakers,
+# CenterofExcellenceCoreComponentsTeams, and Theming - those 3 ship sample
+# Azure DevOps pipeline templates instead of a .cdsproj and aren't locally
+# buildable (see TODO-Craig-Detailed.md #5).
+
+on:
+  pull_request:
+    paths:
+      - "admintaskanalysis_core/**"
+      - "ALMAcceleratorSampleSolution/**"
+      - "business_value_core/**"
+      - "CenterofExcellenceALMAccelerator/**"
+      - "CenterofExcellenceAuditComponents/**"
+      - "CenterofExcellenceAuditLogs/**"
+      - "CenterofExcellenceCoreComponents/**"
+      - "CenterofExcellenceInnovationBacklog/**"
+      - "CenterofExcellenceNurtureComponents/**"
+      - "CenterofExcellencePipelineAccelerator/**"
+      - "CommunityCoEUmbrella/**"
+      - ".github/workflows/build-solutions.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest # required: these projects target net462 (SolutionPackager is Windows-only)
+    strategy:
+      fail-fast: false
+      matrix:
+        solution:
+          - name: admintaskanalysis_core
+            path: admintaskanalysis_core/SolutionPackage
+          - name: ALMAcceleratorSampleSolution
+            path: ALMAcceleratorSampleSolution/SolutionPackage
+          - name: business_value_core
+            path: business_value_core/SolutionPackage
+          - name: CenterofExcellenceALMAccelerator
+            path: CenterofExcellenceALMAccelerator/SolutionPackage
+          - name: CenterofExcellenceAuditComponents
+            path: CenterofExcellenceAuditComponents/SolutionPackage
+          - name: CenterofExcellenceAuditLogs
+            path: CenterofExcellenceAuditLogs/SolutionPackage
+          - name: CenterofExcellenceCoreComponents
+            path: CenterofExcellenceCoreComponents/SolutionPackage
+          - name: CenterofExcellenceInnovationBacklog
+            path: CenterofExcellenceInnovationBacklog/SolutionPackage
+          - name: CenterofExcellenceNurtureComponents
+            path: CenterofExcellenceNurtureComponents/SolutionPackage
+          - name: CenterofExcellencePipelineAccelerator
+            path: CenterofExcellencePipelineAccelerator/SolutionPackage
+          - name: CommunityCoEUmbrella
+            path: CommunityCoEUmbrella
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x" # LTS; verified locally against .NET 10 SDK, not yet reconciled to one pinned version - see TODO-Craig-Detailed.md #0/#4
+
+      # SolutionPackager's own post-pack cleanup step (deleting its obj\Debug\Metadata
+      # scratch folder) intermittently hits a transient Windows file-lock (MSB3231),
+      # observed locally even outside CI - almost certainly AV/indexer scanning the
+      # just-written files. The solution zip is already generated before that step
+      # runs, so this is an environment flake, not a real build failure - retry
+      # rather than fail the job on it.
+      - name: Build solution (with retry for the known SolutionPackager cleanup race)
+        shell: pwsh
+        working-directory: ${{ matrix.solution.path }}
+        run: |
+          $maxAttempts = 3
+          for ($i = 1; $i -le $maxAttempts; $i++) {
+            dotnet build
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Host "Build attempt $i failed (exit $LASTEXITCODE) - retrying in case this is the known SolutionPackager cleanup race (MSB3231)..."
+            Start-Sleep -Seconds 5
+          }
+          Write-Host "Build failed after $maxAttempts attempts"
+          exit 1

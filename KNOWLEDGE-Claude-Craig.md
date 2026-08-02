@@ -321,7 +321,120 @@ existing components — a Dataverse platform rule, not fixable by any script
 or build step. Full plan (what's cheap vs. what's a separate rebuild
 project) is in `TODO-Craig-Detailed.md` §3, Phase C.
 
-## 10. Key sources
+## 10. Power Platform solution build process — verified 3 Aug 2026
+
+Investigated what actually produces the CoE Starter Kit's real deliverables
+(the Dataverse solution `.zip` files — flows, canvas apps, tables, etc.
+combined into one package) since the `coe-cli` build/CI work in §7 only
+covers the peripheral Node tool, not the solutions themselves.
+
+**Inventory — three different build shapes across the 14 solution folders:**
+- **11 folders have a `.cdsproj`** (the standard
+  `Microsoft.PowerApps.MSBuild.Solution` MSBuild project type):
+  `admintaskanalysis_core`, `ALMAcceleratorSampleSolution`,
+  `business_value_core`, `CenterofExcellenceALMAccelerator`,
+  `CenterofExcellenceAuditComponents`, `CenterofExcellenceAuditLogs`,
+  `CenterofExcellenceCoreComponents`, `CenterofExcellenceInnovationBacklog`,
+  `CenterofExcellenceNurtureComponents`, `CenterofExcellencePipelineAccelerator`,
+  and the new `CommunityCoEUmbrella` (§9). `dotnet build` on any of these
+  invokes SolutionPackager and produces both managed + unmanaged solution
+  `.zip` files under `bin/Debug/`.
+- **3 folders have no `.cdsproj` at all** — `ALMAcceleratorForMakers`,
+  `CenterofExcellenceCoreComponentsTeams`, `Theming`. Instead each carries
+  `deploy-{validation,test,prod}-*.yml`: sample Azure DevOps pipeline
+  templates referencing an *external* repo
+  (`Microsoft/coe-alm-accelerator-templates`) via `resources.repositories`
+  (type: github, endpoint: `powercat-alm` service connection) plus an ADO
+  variable group (`alm-accelerator-variable-group`). None of that exists in
+  this repo/account — these are reference templates, not runnable pipelines,
+  and there's no local/CI way to build these 3 today.
+- **`export-unpack.ps1`** (repo root) is the reverse direction: `pac solution
+  export` (pull from a live Dataverse env) → `pac solution unpack` (write
+  into source). A dev-inner-loop helper, not a build step — needs a live
+  authenticated environment + `pac` CLI + `jq`.
+
+**Verified locally (3 Aug 2026)**: built `CenterofExcellenceAuditLogs`
+(smallest solution, 13 files) via `dotnet build` in
+`CenterofExcellenceAuditLogs/SolutionPackage/` — confirms the toolchain works
+end-to-end (.NET 10 SDK already installed, NuGet restore of
+`Microsoft.PowerApps.MSBuild.Solution` 1.52.1 succeeds, SolutionPackager
+produces both `CenterofExcellenceAuditLogs.zip` and `_managed.zip`). First
+attempt reported "Build FAILED" but only on a post-build cleanup step
+(`MSB3231: Unable to remove directory obj\Debug\Metadata` — a transient
+Windows file-lock, likely AV/indexer/OneDrive holding a handle open right
+after the zip was written); the zips were already generated successfully
+before that error. Immediate retry succeeded cleanly, 0 errors. **Not yet
+tried** on the other 10 `.cdsproj` projects — no reason to expect a different
+result, but unverified.
+
+**Gap**: none of these 11 `.cdsproj` builds are wired into any CI workflow —
+nothing automatically confirms the actual solution deliverables still pack
+after a change, unlike `coe-cli` now (§7). Tracked in `TODO-Craig.md` /
+`TODO-Craig-Detailed.md` §4.
+
+**Update (3 Aug 2026, later same day) — all 11 built, and a CI workflow now
+covers them:**
+
+Ran `dotnet build` against all 11 `.cdsproj` projects (the 10 original
+Microsoft solutions + `CommunityCoEUmbrella`). **Result: 11/11 produced valid
+managed + unmanaged solution `.zip` files** — confirmed by checking `bin/Debug/`
+directly, not just the reported exit code (see why below).
+
+**Found and characterized a real, reproducible flake**: 6 of the 11 builds
+reported "Build FAILED" on the first pass when run back-to-back in a tight
+loop, all with the *exact same* error — `MSB3231: Unable to remove directory
+"obj\Debug\Metadata"` — SolutionPackager's own post-pack cleanup step hitting
+a Windows file-lock on files it just wrote (almost certainly antivirus
+real-time scanning or the search indexer briefly holding a handle open). In
+**every single one** of those 6 cases, the log confirms `Solution Package
+Type: Both generated` appeared *before* the cleanup error — the actual
+packing always succeeded; only the temp-folder cleanup afterward flaked.
+Retrying immediately didn't always clear it in a tight sequential loop
+(`CenterofExcellenceAuditLogs` failed twice in a row, having built cleanly on
+its own minutes earlier) — this points at contention from running many
+builds back-to-back on one machine, not a per-project defect.
+
+**Added `.github/workflows/build-solutions.yml`**: a matrix job (one entry
+per `.cdsproj`, `windows-latest` — required, since these target `net462`)
+that runs `dotnet build` per solution with a 3-attempt retry specifically to
+absorb the MSB3231 cleanup race, triggered on PRs touching any of the 11
+solution folders. This is the solution-side equivalent of the `coe-cli`
+build gate in §7 — closes the gap called out above. Uses `.NET 8.0.x` (LTS)
+in CI; local verification was done on the already-installed .NET 10 SDK —
+that's an unreconciled version gap, same shape as the Node-version pin gap
+already tracked for `coe-cli` (`TODO-Craig-Detailed.md` §0 item 3), not
+assumed to be equivalent.
+
+Excluded from both the manual build pass and the new workflow:
+`ALMAcceleratorForMakers`, `CenterofExcellenceCoreComponentsTeams`,
+`Theming` — no `.cdsproj`, ADO-template-only, per the inventory above.
+
+**Azure DevOps + GitHub hosting — considered 3 Aug 2026**: Craig has
+corporate Fusion5 Azure DevOps access but no ADO repo for this project yet,
+and asked whether storing/syncing this in both ADO and GitHub causes harm.
+Two different things get conflated under "sync":
+- **ADO pipelines pulling from the GitHub repo** (exactly what the sample
+  `deploy-*.yml` templates already assume, via a GitHub service connection)
+  — no harm, this is the intended shape: one canonical repo (GitHub), ADO
+  used purely as the pipeline/CI engine that reads it. No second copy of
+  source to keep in sync.
+- **A second, independently-writable copy of the source living in ADO
+  Repos** — real harm on two fronts: (a) mechanical — dual-primary sync
+  conflicts, divergent history, no clear source of truth; (b)
+  governance/branding — this project is deliberately positioned as
+  personal/public and explicitly *not* Fusion5-branded or funded (§6,
+  `TODO-Craig.md` Phase 2). Hosting the actual source in a Fusion5-controlled
+  corporate ADO org, even unofficially, blurs that line in a way a read-only
+  pipeline connection doesn't.
+
+**Recommendation**: stand up an ADO **project with pipelines only** — no ADO
+Repos copy — pointed back at the GitHub repo via a service connection,
+matching what the existing `deploy-*.yml` templates already expect. Revisit
+only if there's a specific corporate-compliance reason the source itself
+must live in ADO Repos, and treat that as its own explicit decision rather
+than a default (same pattern as the publisher/prefix decision in §9).
+
+## 11. Key sources
 
 - Microsoft Learn — CoE Starter Kit transition notice:
   https://learn.microsoft.com/en-us/power-platform/guidance/coe/starter-kit

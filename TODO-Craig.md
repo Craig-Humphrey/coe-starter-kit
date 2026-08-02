@@ -60,6 +60,37 @@ before spending any real effort on Phase 2+.
       gaps found.
 - [ ] Skim the March 2026 milestone (last active, left ~56% complete) for
       anything that was near-finished and worth closing out first
+- [x] **Confirm the Power Platform solution build actually works, and wire
+      it into CI** — **done (3 Aug 2026)**: `coe-cli`'s build only covers
+      the Node CLI, not the real CoE Starter Kit deliverables. Built all 11
+      `.cdsproj` solution projects locally via `dotnet build` — **11/11
+      produced valid managed + unmanaged solution zips**. Along the way,
+      found and characterized a real, reproducible flake in
+      SolutionPackager's own post-pack cleanup step (`MSB3231`, a transient
+      Windows file-lock, likely AV/indexer — the zip is always already
+      generated before it hits) and added
+      `.github/workflows/build-solutions.yml` with a 3-attempt retry to
+      absorb it — the solution-side equivalent of the `coe-cli` build gate.
+      Full detail in `KNOWLEDGE-Claude-Craig.md` §10 /
+      `TODO-Craig-Detailed.md` §4. **Still open**: CI's .NET version isn't
+      reconciled against the locally-verified one (same shape as the
+      `coe-cli` Node-version gap); a failed solution build only reports
+      today, doesn't attempt a real environment import.
+- [ ] **Decide what to do with the 3 ADO-template-only solutions**
+      (`ALMAcceleratorForMakers`, `CenterofExcellenceCoreComponentsTeams`,
+      `Theming`) — they ship sample Azure DevOps pipeline YAML instead of a
+      `.cdsproj`, pointing at an external Microsoft template repo and ADO
+      resources that don't exist yet. Three options (leave as reference-only
+      / migrate to the `.cdsproj` pattern / actually stand up ADO) in
+      `TODO-Craig-Detailed.md` §5, not decided yet.
+- [x] **ADO + GitHub dual-hosting question — answered (3 Aug 2026)**: no
+      harm in Azure DevOps pipelines reading from the GitHub repo via a
+      service connection (the intended shape, already assumed by the sample
+      templates) — harm is specifically in a second independently-writable
+      copy of the source in ADO Repos (sync conflicts, and it blurs the
+      "personal/public, not Fusion5-controlled" positioning from Phase 2).
+      Recommendation: ADO project with pipelines only, no repo mirror. Full
+      reasoning in `KNOWLEDGE-Claude-Craig.md` §10.
 
 ## Phase 2 — Scope & governance decisions
 
@@ -83,6 +114,15 @@ maintenance-treadmill problem that killed the original)*
       contributor-led model later. **Not yet decided**: the trigger/criteria
       for that handover — needs its own decision, don't let it happen by
       default.
+- [x] Repo hosting — **decided (3 Aug 2026): GitHub stays the one canonical
+      copy of the source.** Craig has corporate Fusion5 Azure DevOps access
+      and no harm in pointing ADO **pipelines** at the GitHub repo via a
+      service connection (Fusion5 as CI engine only) — but a second,
+      independently-writable copy of the source in ADO Repos would both risk
+      sync conflicts and blur the "personal/public, not Fusion5-controlled"
+      line decided above. Full reasoning in `KNOWLEDGE-Claude-Craig.md` §10;
+      the concrete ADO-pipelines decision for the 3 template-only solutions
+      is tracked in Phase 1 above / `TODO-Craig-Detailed.md` §5.
 - [ ] Check Microsoft trademark language before any public naming or
       announcement (this is now the only trademark check that matters, since
       the release isn't Fusion5-branded — no separate Fusion5 legal/marketing

@@ -406,3 +406,85 @@ Kit" the actual publisher of record, but sequence it deliberately rather
 than folding it into a routine branding pass. Do not attempt a full
 prefix/schema rebuild — that's a separate, much larger project and stays
 out of scope per the charter.
+
+---
+
+## 4. Verify/CI the Power Platform solution build (`.cdsproj` → solution `.zip`)
+
+**Why**: `coe-cli`'s build (§0) only covers the Node CLI — it says nothing
+about whether the actual CoE Starter Kit deliverables (the Dataverse
+solutions) still pack. Confirmed 3 Aug 2026 the mechanism exists and works
+locally; it's just unverified in CI. Full findings in
+`KNOWLEDGE-Claude-Craig.md` §10.
+
+**Done (3 Aug 2026)**:
+1. Built all 11 `.cdsproj` projects locally (the 10 original Microsoft
+   solutions + `CommunityCoEUmbrella`) — **11/11 produced valid managed +
+   unmanaged solution `.zip` files**, confirmed by checking `bin/Debug/`
+   directly rather than trusting the reported exit code alone (see next
+   point for why). Full detail in `KNOWLEDGE-Claude-Craig.md` §10.
+2. In the process, found and characterized a real, reproducible flake: 6 of
+   the 11 builds reported "Build FAILED" on a tight back-to-back run, all
+   with the identical `MSB3231: Unable to remove directory
+   "obj\Debug\Metadata"` — SolutionPackager's own post-pack cleanup step
+   hitting a transient Windows file-lock (almost certainly AV/indexer
+   scanning the just-written files), *after* the solution zip had already
+   been generated successfully in every case. Added
+   `.github/workflows/build-solutions.yml`: a matrix job (one entry per
+   `.cdsproj`, `windows-latest`, triggered on PRs touching any solution
+   folder) that runs `dotnet build` with a 3-attempt retry specifically to
+   absorb this race. This is the solution-side equivalent of the `coe-cli`
+   build gate in §0/§7.
+
+**Still open**:
+1. CI uses `.NET 8.0.x` (LTS); local verification was on the already-
+   installed .NET 10 SDK — an unreconciled version gap, same shape as the
+   Node-version pin gap already tracked for `coe-cli` in §0 item 3. Worth
+   resolving both together rather than separately.
+2. Whether a failed solution build should just report (the current bar,
+   matching `coe-cli`) or also attempt import into a real Dataverse dev
+   environment is a bigger, separate decision — needs environment
+   credentials in CI — not attempted here.
+3. `ALMAcceleratorForMakers`, `CenterofExcellenceCoreComponentsTeams`, and
+   `Theming` are excluded from this workflow entirely (no `.cdsproj`) — see
+   §5.
+
+---
+
+## 5. Azure DevOps hosting for the 3 template-only solutions (and the wider ADO/GitHub question)
+
+**Context**: `ALMAcceleratorForMakers`, `CenterofExcellenceCoreComponentsTeams`,
+and `Theming` (`KNOWLEDGE-Claude-Craig.md` §10) ship sample Azure DevOps
+pipeline YAML instead of a `.cdsproj` — they assume a real ADO project, a
+`powercat-alm` GitHub service connection, and an
+`alm-accelerator-variable-group` variable group, none of which exist yet.
+Craig has corporate Fusion5 ADO access but no repo/project for this there
+yet.
+
+**Decision needed** — what to do with these 3 folders (not mutually
+exclusive):
+- **(a) Leave as reference-only samples** — don't stand up ADO at all,
+  accept these 3 solutions have no working local/CI build path (matches
+  current state, zero effort).
+- **(b) Migrate to the `.cdsproj` pattern** used by the other 11 (§4) — gives
+  them the same local/CI build path as everything else, no ADO dependency.
+  Mechanically straightforward (same `pac solution init`/unpack shape as
+  `CommunityCoEUmbrella` in §3), but loses whatever these 3 pipelines were
+  specifically doing via the ALM Accelerator templates (multi-stage
+  validation/test/prod promotion) — worth checking what that buys before
+  dropping it.
+- **(c) Actually stand up the ADO pipelines** — create an ADO project, wire
+  the GitHub service connection + variable group, let these 3 run for real
+  as ADO-driven CI/CD. Only worth it if there's a genuine reason to want
+  ADO-native multi-environment promotion specifically, beyond what the
+  `.cdsproj` local-build path already gives you.
+
+**On "store/sync in both ADO and GitHub" (answered 3 Aug 2026, full
+reasoning in `KNOWLEDGE-Claude-Craig.md` §10)**: no harm in ADO **pipelines**
+reading from the GitHub repo (exactly what the sample templates already
+assume, via a service connection) — one canonical repo, ADO as CI engine
+only. Real harm is specifically in a second **independently-writable ADO
+Repos copy** of the source: sync-conflict risk, plus it blurs the
+"personal/public, not Fusion5-controlled" positioning already decided in
+Phase 2 (`TODO-Craig.md`). If (c) above is chosen, stand up ADO with
+**pipelines + service connection only**, not an ADO Repos mirror.
