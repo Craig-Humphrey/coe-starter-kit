@@ -6,6 +6,9 @@
     "coe": "./coe"
   },
   "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "test": "jest",
     "test-debug": "node --inspect ./node_modules/jest/bin/jest.js -i",

@@ -1,0 +1,22 @@
+<Project>
+  <!--
+    ponytail: MSBuild auto-imports this for every project under the repo root
+    (including all .cdsproj solution projects), so this one file fixes the issue
+    everywhere - local dev builds, CI, Visual Studio - with no per-project changes.
+
+    Microsoft.PowerApps.MSBuild.Solution's own CleanUpIntermediateFiles target
+    deletes its scratch obj\Debug\Metadata folder right after packing and has no
+    error tolerance on that RemoveDir - so a transient Windows file-lock there
+    (commonly AV real-time scanning or OneDrive indexing the just-written files)
+    fails the whole build even though the solution zip was already generated
+    successfully. Their own Clean target already tolerates the equivalent
+    RemoveDir failure (ContinueOnError="WarnAndContinue"); this reapplies that
+    same tolerance here, since deleting the scratch folder is non-essential
+    cleanup, not part of the actual deliverable.
+  -->
+  <Target Name="CleanUpIntermediateFiles" AfterTargets="PowerAppsPackage">
+    <RemoveDir Directories="$(SolutionPackagerMetadataWorkingDirectory)" Condition="Exists('$(SolutionPackagerMetadataWorkingDirectory)')" ContinueOnError="WarnAndContinue" />
+    <RemoveDir Directories="$(SolutionPackagerLocalizationWorkingDirectory)" Condition="Exists('$(SolutionPackagerLocalizationWorkingDirectory)')" ContinueOnError="WarnAndContinue" />
+    <Message Importance="High" Text="Completed intermediate files clean up." />
+  </Target>
+</Project>

@@ -27,10 +27,13 @@ before spending any real effort on Phase 2+.
       Added a real ESLint config, fixed the script bug that was masking lint
       failures, fixed the handful of resulting trivial errors (`npm run
       lint` now exits 0: 0 errors / 294 tracked warnings). Full details in
-      `KNOWLEDGE-Claude-Craig.md` §7. **Still open**: Node version pin
-      (CI's 16.x is EOL, no `engines` field in `package.json`) and
-      contributor build docs — tracked in `TODO-Craig-Detailed.md` §0,
-      items 3–4, not blocking the Dependabot merge below.
+      `KNOWLEDGE-Claude-Craig.md` §7. Node version pin — **also done (3 Aug
+      2026)**: CI bumped `16.x` (EOL) → `24.x` (current LTS, matches what's
+      already installed locally), `actions/setup-node` bumped `@v1` → `@v4`,
+      and `coe-cli/package.json` now has `"engines": {"node": ">=20"}`.
+      Re-verified the full pipeline still passes clean. **Still open**:
+      contributor build docs — tracked in `TODO-Craig-Detailed.md` §0 item 4,
+      not blocking the Dependabot merge below.
 - [x] **Test guidance + coverage baseline for `coe-cli`** — **done (24 Jul
       2026)**: no test documentation existed anywhere in the repo. Added
       `coe-cli/docs/testing/readme.md` — existing test conventions
@@ -69,13 +72,19 @@ before spending any real effort on Phase 2+.
       SolutionPackager's own post-pack cleanup step (`MSB3231`, a transient
       Windows file-lock, likely AV/indexer — the zip is always already
       generated before it hits) and added
-      `.github/workflows/build-solutions.yml` with a 3-attempt retry to
-      absorb it — the solution-side equivalent of the `coe-cli` build gate.
-      Full detail in `KNOWLEDGE-Claude-Craig.md` §10 /
-      `TODO-Craig-Detailed.md` §4. **Still open**: CI's .NET version isn't
-      reconciled against the locally-verified one (same shape as the
-      `coe-cli` Node-version gap); a failed solution build only reports
-      today, doesn't attempt a real environment import.
+      `.github/workflows/build-solutions.yml` — the solution-side equivalent
+      of the `coe-cli` build gate. **Also fixed the MSB3231 flake at the
+      root** rather than just retrying around it: a repo-root
+      `Directory.Build.targets` gives the vendor's cleanup step the same
+      error tolerance its own `Clean` target already has, auto-applied to
+      every solution project with no per-project changes. Verified by
+      rebuilding all 11 again — the race still fired (8 of 11) but every one
+      downgraded to a warning and all 11 exited 0, so the retry loop in CI
+      was removed as unnecessary. Also reconciled the .NET version gap: CI
+      now pins `.NET 10.0.x` (LTS, matches what's installed locally). Full
+      detail in `KNOWLEDGE-Claude-Craig.md` §10 / `TODO-Craig-Detailed.md`
+      §4. **Still open**: a failed solution build only reports today,
+      doesn't attempt a real environment import.
 - [ ] **Decide what to do with the 3 ADO-template-only solutions**
       (`ALMAcceleratorForMakers`, `CenterofExcellenceCoreComponentsTeams`,
       `Theming`) — they ship sample Azure DevOps pipeline YAML instead of a

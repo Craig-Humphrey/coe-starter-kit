@@ -396,18 +396,55 @@ builds back-to-back on one machine, not a per-project defect.
 
 **Added `.github/workflows/build-solutions.yml`**: a matrix job (one entry
 per `.cdsproj`, `windows-latest` — required, since these target `net462`)
-that runs `dotnet build` per solution with a 3-attempt retry specifically to
-absorb the MSB3231 cleanup race, triggered on PRs touching any of the 11
-solution folders. This is the solution-side equivalent of the `coe-cli`
-build gate in §7 — closes the gap called out above. Uses `.NET 8.0.x` (LTS)
-in CI; local verification was done on the already-installed .NET 10 SDK —
-that's an unreconciled version gap, same shape as the Node-version pin gap
-already tracked for `coe-cli` (`TODO-Craig-Detailed.md` §0 item 3), not
-assumed to be equivalent.
+triggered on PRs touching any of the 11 solution folders. This is the
+solution-side equivalent of the `coe-cli` build gate in §7.
 
 Excluded from both the manual build pass and the new workflow:
 `ALMAcceleratorForMakers`, `CenterofExcellenceCoreComponentsTeams`,
 `Theming` — no `.cdsproj`, ADO-template-only, per the inventory above.
+
+**Fixed the MSB3231 flake at the root (3 Aug 2026, later still)**: rather
+than just retrying around it, traced the actual vendor target
+(`Microsoft.PowerApps.MSBuild.Solution.targets`,
+`CleanUpIntermediateFiles`) — it calls `RemoveDir` with no error tolerance,
+even though the *vendor's own* `Clean` target already uses
+`ContinueOnError="WarnAndContinue"` for the equivalent case. Added a
+repo-root `Directory.Build.targets` that redefines that one target with the
+same tolerance — MSBuild auto-imports `Directory.Build.targets` for every
+project under the repo (all 11 `.cdsproj` files already import
+`Microsoft.Common.targets`, which is what makes the auto-import work), so
+this is a single ~10-line file that fixes it everywhere: local `dotnet
+build`, CI, Visual Studio, with zero per-project changes. **Verified**: ran
+all 11 builds back-to-back again post-fix — the race still occurred (8 of
+11 this time, more than the original 6, i.e. genuinely contention-driven,
+not a fluke) but every one now surfaces as `warning MSB3231` instead of
+`error MSB3231`, and all 11 builds exited 0. Simplified
+`build-solutions.yml`'s build step back down to a plain `dotnet build` —
+the earlier 3-attempt retry loop is no longer needed once the root cause is
+tolerated correctly.
+
+**Reconciled both open toolchain-version gaps the same day**: rather than
+leaving them as tracked debt, since "aim for current LTS, verified locally"
+turned out to be cheap to just do:
+- `build-solutions.yml` now pins `.NET 10.0.x` (an LTS release; even-numbered
+  .NET versions are LTS) — matches what's already installed and verified
+  locally, no gap to track.
+- `pr-loop-jest-tests.yml` now pins `Node 24.x` (also current LTS) instead of
+  the EOL `16.x`, and `actions/setup-node` was bumped `@v1` → `@v4` in the
+  same edit. Re-verified the full `coe-cli` pipeline (`npm run build` /
+  `npm run lint` / `npm test`) still passes clean after the change: 0 lint
+  errors, 89/89 tests. `coe-cli/package.json` also gained an `engines: {
+  "node": ">=20" }` field, so the floor is enforced at the package level too,
+  not just in CI.
+- **Why not test against multiple versions instead**: a multi-version test
+  matrix earns its cost for a published library/package that other people's
+  projects depend on across environments you don't control — you can't
+  dictate their runtime, so you test the range. Neither `coe-cli` (an
+  end-user-installed CLI, not a dependency) nor the Dataverse solutions
+  (packaged once, not "run" against a variable host runtime) have that kind
+  of external consumer to protect. The only environments that matter are the
+  ones actually doing the building — dev machines and CI — and those are
+  fully within control here. Single current-LTS version, not a matrix.
 
 **Azure DevOps + GitHub hosting — considered 3 Aug 2026**: Craig has
 corporate Fusion5 Azure DevOps access but no ADO repo for this project yet,

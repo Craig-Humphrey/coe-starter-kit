@@ -8,9 +8,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Setup Node.js
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@v4
         with:
-          node-version: "16.x"
+          node-version: "24.x" # current LTS; matches what's already verified locally (16.x is EOL)
 
       # Speed up subsequent runs with caching
       - name: Cache node modules

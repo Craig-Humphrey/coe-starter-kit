@@ -45,17 +45,22 @@ clean. Right now CI can't fully do that. Verified 24 Jul 2026, findings in
    Also added `eslint` itself as an explicit devDependency (`^8.8.0`) since
    it was previously only resolving transitively.
 
-**Still open — items 3 and 4 (unchanged, not yet actioned)**:
-3. Decide whether to bump the CI Node version (16.x is EOL) and/or add an
-   `engines` field to `package.json` to pin a supported range — needs a
-   decision on what range to support, not just "whatever's installed
-   locally." Related: a local `npm install` under Node 24/npm 11 rewrites
-   large parts of `package-lock.json` (prunes platform-specific optional
-   entries) compared to what CI's Node 16.x npm produces — the lockfile
-   isn't currently a stable artifact across those two environments, which
-   is a symptom of this same undecided Node-version question.
-4. Optionally add the build+test+lint steps as a documented contributor
-   workflow section in `HOW_TO_CONTRIBUTE.md`, since nothing currently tells
+**Item 3 — done (3 Aug 2026)**: bumped CI's `pr-loop-jest-tests.yml` from
+Node `16.x` (EOL) to `24.x` (current LTS) — matches what's already installed
+locally, so this closes the version gap outright rather than leaving it as a
+decision to make later; also bumped `actions/setup-node` `@v1` → `@v4` in the
+same edit. Added `"engines": { "node": ">=20" }` to `coe-cli/package.json`.
+Re-verified the full pipeline (`npm run build` / `npm run lint` / `npm test`)
+still passes clean post-change: 0 lint errors, 89/89 tests. Considered and
+rejected testing against multiple Node versions instead of picking one —
+that pattern earns its cost for a published library other people's projects
+depend on across environments you don't control; `coe-cli` is an
+end-user-installed CLI, not a dependency, so there's no such matrix of
+consumers to protect. Single current-LTS version is enough.
+
+**Item 4 — still open (unchanged, not yet actioned)**: optionally add the
+build+test+lint steps as a documented contributor workflow section in
+`HOW_TO_CONTRIBUTE.md`, since nothing currently tells
    a contributor how to build/test `coe-cli` from source.
 
 ---
@@ -432,20 +437,33 @@ locally; it's just unverified in CI. Full findings in
    been generated successfully in every case. Added
    `.github/workflows/build-solutions.yml`: a matrix job (one entry per
    `.cdsproj`, `windows-latest`, triggered on PRs touching any solution
-   folder) that runs `dotnet build` with a 3-attempt retry specifically to
-   absorb this race. This is the solution-side equivalent of the `coe-cli`
-   build gate in §0/§7.
+   folder). This is the solution-side equivalent of the `coe-cli` build gate
+   in §0/§7.
+3. **Fixed the MSB3231 race at the root instead of just retrying around it**:
+   traced it to the vendor's `CleanUpIntermediateFiles` target having no
+   error tolerance on its `RemoveDir`, unlike their own `Clean` target for
+   the equivalent case. Added a repo-root `Directory.Build.targets` that
+   redefines that one target with the same `ContinueOnError` tolerance —
+   MSBuild auto-imports it for every `.cdsproj` under the repo, so this is
+   one ~10-line file fixing it for local builds, CI, *and* Visual Studio,
+   with no per-project changes needed. Verified by rebuilding all 11 back-
+   to-back again: the race still fired (8 of 11 this time) but every one
+   downgraded to a warning, and all 11 exited 0. Removed the now-unnecessary
+   3-attempt retry from `build-solutions.yml` — a plain `dotnet build` is
+   sufficient once the root cause is tolerated correctly.
+4. **Reconciled the .NET version gap**: `build-solutions.yml` now pins
+   `.NET 10.0.x` (an LTS release — even-numbered .NET versions are LTS),
+   matching what's already installed and verified locally. Considered and
+   rejected building/testing against multiple .NET versions instead — same
+   reasoning as the Node-version decision in §0 item 3: no external consumer
+   whose environment we don't control, so one current-LTS version is enough.
 
 **Still open**:
-1. CI uses `.NET 8.0.x` (LTS); local verification was on the already-
-   installed .NET 10 SDK — an unreconciled version gap, same shape as the
-   Node-version pin gap already tracked for `coe-cli` in §0 item 3. Worth
-   resolving both together rather than separately.
-2. Whether a failed solution build should just report (the current bar,
+1. Whether a failed solution build should just report (the current bar,
    matching `coe-cli`) or also attempt import into a real Dataverse dev
    environment is a bigger, separate decision — needs environment
    credentials in CI — not attempted here.
-3. `ALMAcceleratorForMakers`, `CenterofExcellenceCoreComponentsTeams`, and
+2. `ALMAcceleratorForMakers`, `CenterofExcellenceCoreComponentsTeams`, and
    `Theming` are excluded from this workflow entirely (no `.cdsproj`) — see
    §5.
 
