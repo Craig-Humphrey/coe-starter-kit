@@ -85,13 +85,25 @@ before spending any real effort on Phase 2+.
       detail in `KNOWLEDGE-Claude-Craig.md` §10 / `TODO-Craig-Detailed.md`
       §4. **Still open**: a failed solution build only reports today,
       doesn't attempt a real environment import.
-- [ ] **Decide what to do with the 3 ADO-template-only solutions**
+- [~] **Decide what to do with the 3 ADO-template-only solutions**
       (`ALMAcceleratorForMakers`, `CenterofExcellenceCoreComponentsTeams`,
       `Theming`) — they ship sample Azure DevOps pipeline YAML instead of a
       `.cdsproj`, pointing at an external Microsoft template repo and ADO
       resources that don't exist yet. Three options (leave as reference-only
       / migrate to the `.cdsproj` pattern / actually stand up ADO) in
-      `TODO-Craig-Detailed.md` §5, not decided yet.
+      `TODO-Craig-Detailed.md` §5. **Partially resolved (9 Aug 2026)** for 2
+      of the 3 via `CoE_vs_Microsoft.md`: `ALMAcceleratorForMakers` and
+      `Theming` are both retire-in-place candidates (Microsoft has deprecated
+      the ALM Accelerator lineage outright; Theming is superseded by native
+      Fluent 2 theming) — don't invest in migrating either to `.cdsproj`.
+      **Still undecided**: `CenterofExcellenceCoreComponentsTeams` — unlike
+      the other two, this one has real live components (a full Dataverse-
+      for-Teams inventory/DLP/env-request solution, confirmed via
+      `CoE_vs_Microsoft.md` §1 inventory) that Microsoft has *not*
+      deprecated, it's just packaged without a `.cdsproj`/build path. Its
+      retire/keep verdict follows CoreComponents' own (§1) — the "migrate to
+      `.cdsproj` so it can be built and tested" question is still open and
+      separate from the retire question.
 - [x] **ADO + GitHub dual-hosting question — answered (3 Aug 2026)**: no
       harm in Azure DevOps pipelines reading from the GitHub repo via a
       service connection (the intended shape, already assumed by the sample
@@ -100,6 +112,45 @@ before spending any real effort on Phase 2+.
       "personal/public, not Fusion5-controlled" positioning from Phase 2).
       Recommendation: ADO project with pipelines only, no repo mirror. Full
       reasoning in `KNOWLEDGE-Claude-Craig.md` §10.
+
+- [x] **Granular CoE-vs-native feature comparison — done (9 Aug 2026)**: built
+      `CoE_vs_Microsoft.md` — every component in every solution folder mapped
+      against its closest native Microsoft equivalent, with dates and a
+      retire/keep/partial verdict, plus a prioritized task list (§7) and a
+      dependency map (§6) flagging which "safe to retire" components are
+      still read by other live flows. Resolves the ADO-template-folder
+      decision below in the opposite direction from expected: Microsoft has
+      already deprecated ALM Accelerator for Power Platform itself, so
+      `ALMAcceleratorForMakers`/`CenterofExcellencePipelineAccelerator` are
+      retire-in-place candidates, not `.cdsproj`-migration candidates. Full
+      detail in `KNOWLEDGE-Claude-Craig.md` §11.
+- [x] **Deepened `CoE_vs_Microsoft.md` — done (9 Aug 2026)**: second pass
+      cross-checked every row against in-repo docs, official Microsoft Learn
+      per-component setup guides, the actual flow/entity source, and
+      community/MVP-recommended alternatives (new column, scored by source
+      reliability + paid-third-party barrier-to-entry). Surfaced a real
+      production incident (DLP automation suspended 444 flows tenant-wide —
+      reinforces keeping the DLP change-request approval manual), confirmed
+      quarantine's action was always native (CoE's value is purely the
+      trigger), found undocumented manager-escalation-on-404 sophistication
+      in orphaned-resource reassignment, and found a new load-bearing asset
+      not in the original inventory (`CenterofExcellenceResources/Release/PowerPlatformHub/`
+      — a Microsoft-authored SharePoint hub template several Nurture flows
+      depend on). Also: commercial governance vendors (Rencore/CoreView/
+      Syskit) consistently cover detection only, never the approval/
+      escalation workflow itself — named MVPs point back at using CoE's own
+      implementation rather than an alternative. Full detail in
+      `KNOWLEDGE-Claude-Craig.md` §12.
+- [ ] **Act on the `CoE_vs_Microsoft.md` §7 task list** — turn the
+      retire/re-point/keep verdicts into actual PRs: start with the
+      no-dependency-risk retirements (`CenterofExcellenceAuditLogs`,
+      `Theming`'s theme-editor pieces, the 3 ALM/Pipeline solutions, several
+      Nurture components), then tackle the re-point group (inventory sync
+      consumers) once a decision is made on how much of Core Components'
+      sync layer survives. Also fix the two "known issues regardless of
+      retirement" items while in there: the Log Analytics cost overrun in
+      the current v4 sync flows, and the missing cleanup job for
+      `admin_EnvironmentSecurityRolePermission`.
 
 ## Phase 2 — Scope & governance decisions
 

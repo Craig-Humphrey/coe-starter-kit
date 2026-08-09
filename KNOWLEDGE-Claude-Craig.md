@@ -471,7 +471,101 @@ only if there's a specific corporate-compliance reason the source itself
 must live in ADO Repos, and treat that as its own explicit decision rather
 than a default (same pattern as the publisher/prefix decision in §9).
 
-## 11. Key sources
+## 11. Feature-by-feature comparison vs. native Microsoft — 9 Aug 2026
+
+Built `CoE_vs_Microsoft.md` (repo root): a granular, component-level comparison of every
+solution in this fork against its closest native Microsoft equivalent (admin center,
+Purview, Viva, Entra), with dates and a retire/keep/partial verdict per component, feeding a
+prioritized task list. Method: 5 parallel codebase-inventory passes (one per solution
+grouping) cross-referenced against 6 parallel Microsoft Learn/release-plan/blog research
+passes. Headline findings not already captured elsewhere in this file:
+
+- **Microsoft has already deprecated ALM Accelerator for Power Platform specifically**
+  (its own Learn page is tagged "(Deprecated)"), pointing to native Power Platform Pipelines
+  — not just the whole-kit archive notice. By extension `ALMAcceleratorForMakers` and
+  `CenterofExcellencePipelineAccelerator` are doubly superseded (the latter's own README
+  self-describes as an early-preview stepping-stone). This resolves the open
+  `TODO-Craig-Detailed.md` §5 decision on the 3 ADO-template-only solutions in the *opposite*
+  direction from "migrate to `.cdsproj`" — Microsoft's own guidance says retire-in-place.
+- **Theming is now fully superseded**: native modern controls & themes (Fluent 2) reached
+  GA 31 Mar 2026 and became *mandatory* in 2026 release wave 1 (Apr 2026), exceeding what
+  the bespoke canvas-app theme editor + custom PCF color pickers did.
+- **Canvas-app quarantine now has a native UI path** (Inventory's Block action), not just
+  PowerShell as assumed in §2's July 2026 table — narrows that gap, but the automated
+  compliance-grace-period sweep around it still has no native equivalent.
+- **Template Catalog is fully superseded** by Catalog in Power Platform (GA since Sept
+  2024) — a stronger match than the "maker welcome content" feature §2 previously cited.
+- Several components remain gaps **by Microsoft's own admission**: its current adoption-
+  guidance docs still name this exact fork's Business Value toolkit, Innovation Backlog, and
+  the inactivity-notification/orphaned-resource processes as *the* recommended tool for each
+  — i.e. Microsoft never built native replacements for these, unmaintained CoE or not.
+- The inventory-sync tables in `CenterofExcellenceCoreComponents` (`admin_App`,
+  `admin_Flow`, `admin_Maker`, etc.) are safe to retire against native Inventory/Usage in
+  isolation, but are read/written by ~15+ flows across Audit Components, Nurture
+  Components, and ALM — retiring them requires re-pointing those consumers first. Full
+  dependency map in `CoE_vs_Microsoft.md` §6.
+
+## 12. CoE_vs_Microsoft.md deepened — doc/code nuances + alternatives — 9 Aug 2026
+
+Second pass over `CoE_vs_Microsoft.md`: cross-checked every row against in-repo documentation
+(`Documentation/`, `CenterofExcellenceResources/`) and official Microsoft Learn per-component
+setup guides (not just overview pages), re-examined the actual flow JSON/entity XML for
+non-obvious configuration/behavior, and researched named-MVP/community/commercial
+alternatives — weighted by source reliability (T1/T2/T3) and penalized when a paid third-party
+license is required (barrier-to-entry). Added a new "Alternative (non-MS)" column and a
+"Nuances found" narrative per section. Findings not already captured above:
+
+- **Real production incident found**: a documented case where DLP-policy-change automation
+  (copy → broaden → narrow → delete, the same class of action `DLPRequestProcessApprovedPolicyChange`
+  performs) suspended **444 flows tenant-wide** via a 2–4hr DLP-cache propagation delay past
+  deletion. The postmortem's own proposed fixes are confirmed absent from this fork's shipped
+  flow. Strengthens the case for keeping this approval workflow manual/human-gated rather than
+  treating "no native substitute" as license to automate it further.
+- **App quarantine's real mechanism was always native** (`Set-AppQuarantineState`) — CoE never
+  had a bespoke quarantine action, only the automated trigger (daily sweep, documented 7-day
+  default, an undocumented per-environment opt-out flag). Narrows §1/§2's framing.
+- **Orphaned resource reassignment has undocumented sophistication**: manager resolution reads
+  a cached Dataverse field, validates via Graph, and on a 404 (manager gone) **auto-escalates to
+  a cached second-level manager** before falling back to the admin — found in code, not in any
+  doc, and not replicated by any alternative found (Syskit Point explicitly *cannot* reassign a
+  flow's Primary Owner).
+- **Commercial governance vendors (Rencore, CoreView, Syskit Point) consistently cover
+  detection, not workflow** — none has verifiable documentation of an approval-chain/
+  manager-escalation/grace-period mechanism matching what this kit implements for inactivity,
+  quarantine, or orphaned-resource handling. Named MVPs who've written on these topics (Jukka
+  Niiranen, Amber Weise, Alex Shlega, Lewis Baybutt) describe and recommend *using the CoE kit's
+  own implementation* rather than proposing a substitute.
+- **New asset found, not in the original inventory**: `CenterofExcellenceResources/Release/PowerPlatformHub/`
+  is a Microsoft-authored PnP SharePoint provisioning template, and it's load-bearing —
+  `business_value_core`'s success-story flow publishes to exactly this site
+  (`cr5cd_CommunityHubUrl`). Microsoft's own Learn page for it names the Nurture components as
+  its automation layer. Recommend keeping it (low maintenance risk, one-time provisioning
+  script) rather than treating it as a gap or an oversight.
+- **Two real code-level bugs/overstatements found**: Pulse Survey's AI Builder sentiment call
+  is hardcoded to English (`"en"`) with no confidence score persisted, and Microsoft's own
+  "Use nurture components" doc claims the flow "translates" feedback — no translation action
+  exists anywhere in the flow JSON. Newsletter's flow already has one RSS source flagged
+  obsolete in its own inline description — concrete evidence of the "recreate the maintenance
+  treadmill" risk in §6.
+- **Innovation Backlog's "complexity scoring" isn't wired**: the multiplier fields on
+  `admin_BacklogItemComplexity` are never referenced by either canvas app's Power Fx in this
+  fork's shipped source — matches Microsoft's own "these are estimations you can update"
+  framing more than an automated calculator. Don't oversell it as one.
+- **`admintaskanalysis_core` has zero dependency on any other component** (confirmed via
+  Microsoft's own doc) — the lowest-risk "keep" in the whole kit, unlike Pulse Survey/Training
+  which both depend on CoreComponents tables.
+- **Known issue, independent of any retirement decision**: `Documentation/ReducingAzureLogAnalyticsCosts.md`
+  documents a live cost problem in the *current* (not deprecated) v4 inventory-sync flows —
+  user-based, not service-principal, Power Platform for Admins connector auth generates
+  billed-per-GB non-interactive sign-in logs. Retiring `CenterofExcellenceAuditLogs` doesn't
+  touch this; whatever sync layer survives still carries it.
+- **`admin_EnvironmentSecurityRolePermission` has no built-in cleanup job** and can grow to
+  10+GB — the kit's own `DataRetentionAndMaintenance.md` admits this outright.
+- Full per-row alternative-replacement table, source tiers, and barrier-to-entry scoring in
+  `CoE_vs_Microsoft.md` §1–§6; prioritized task list (including a new "known issues to fix
+  regardless of retirement" bucket) in §7.
+
+## 13. Key sources
 
 - Microsoft Learn — CoE Starter Kit transition notice:
   https://learn.microsoft.com/en-us/power-platform/guidance/coe/starter-kit
