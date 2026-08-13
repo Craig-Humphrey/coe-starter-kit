@@ -17,10 +17,31 @@ before spending any real effort on Phase 2+.
       brings issues, PRs, releases, wiki, stars, and existing collaborators'
       access along automatically — see `KNOWLEDGE-Claude-Craig.md`. Revisit
       before any public launch.
-- [ ] Export the current Issues backlog from the archived upstream repo —
+- [~] Export the current Issues backlog from the archived upstream repo —
       full step-by-step plan in `TODO-Craig-Detailed.md` (§1). Confirmed the
       archived repo is still fully readable via the GitHub API/git, so this
       isn't urgent, but do it before relying on that indefinitely.
+      **Triaged (9 Aug 2026)**: pulled all 202 tenant-wide open issues, then
+      narrowed to milestone #76 "CoE Starter Kit - March 2026" (34 open) —
+      the last active-development milestone before archival, matching the
+      "56% complete" note above. Of those 34, triaged down to 12 real bugs
+      on components this fork is keeping (per `CoE_vs_Microsoft.md`),
+      merging duplicate reports where two issues described the same root
+      cause (env-request security group, quarantine email-flood). Excluded:
+      4 empty placeholder templates, 5 pure questions, and everything on a
+      component already verdicted "retire" (legacy v3 sync, current
+      audit-log sync, Command Center's Power BI dashboard, one stale 2024
+      connector-deprecation notice). Commands to recreate the 12 in
+      `Craig-Humphrey/coe-starter-kit` with origin attribution were handed
+      to Craig, who ran them himself — **confirmed done (9 Aug 2026)**:
+      issues #6-17 in the fork. Combined with the 4 bugs found during this
+      session's own code review (issues #1-4; #5 is the low-priority Log
+      Analytics one, intentionally skipped), all 16 now have an
+      Easy/Medium/Hard difficulty-assessment comment, verified present via
+      the GitHub API. Full remaining 168 tenant-wide open issues (outside
+      this milestone) still unexported; not urgent per the "still fully
+      readable" note above, revisit if this one-milestone slice proves
+      useful.
 - [x] **Harden the `coe-cli` build/CI process before merging any dependency
       bumps** — **done (24 Jul 2026)**: CI now runs `npm run build` and
       `npm run lint` as their own steps (previously only `npm test` ran).
